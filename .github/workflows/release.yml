@@ -1,0 +1,149 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      force_release:
+        description: "Force a release (skip commit message check)"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install poetry
+        run: |
+          pip install poetry
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Detect release merge commit
+        id: detect
+        run: |
+          LAST_COMMIT_MESSAGE=$(git log --format=%B -n 1 | head -n 1)
+          echo "commit_message=${LAST_COMMIT_MESSAGE}" >> "$GITHUB_OUTPUT"
+
+          if [[ "${{ github.event.inputs.force_release }}" == "true" ]]; then
+            echo "is_release=true" >> "$GITHUB_OUTPUT"
+            echo "Forced release via workflow_dispatch"
+          elif echo "${LAST_COMMIT_MESSAGE}" | grep -iE "Merge pull request.*from .*/release.*"; then
+            echo "is_release=true" >> "$GITHUB_OUTPUT"
+            echo "Release merge commit detected"
+          else
+            echo "is_release=false" >> "$GITHUB_OUTPUT"
+            echo "Not a release merge commit"
+          fi
+
+      - name: Get version
+        id: version
+        run: |
+          VERSION=$(poetry version -s)
+          RELEASE_BRANCH="release/v$(echo ${VERSION} | cut -f1-2 -d .)"
+          echo "current=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "release_branch=${RELEASE_BRANCH}" >> "$GITHUB_OUTPUT"
+
+      # =============================================================
+      # Release path: tag, GitHub release, PyPI publish
+      # =============================================================
+      - name: Create git tag with changelog
+        if: steps.detect.outputs.is_release == 'true'
+        run: |
+          VERSION=$(poetry version -s)
+          LAST_RELEASE_COMMIT=$(git rev-list --tags --max-count=1 || echo "")
+          if [ -n "${LAST_RELEASE_COMMIT}" ]; then
+            TAG_BODY=$(git --no-pager log --no-merges --oneline ${LAST_RELEASE_COMMIT}..HEAD --pretty='- %h %s')
+          else
+            TAG_BODY=$(git --no-pager log --no-merges --oneline --pretty='- %h %s')
+          fi
+          git tag -a "${VERSION}" -m "${TAG_BODY}"
+          git push origin --tags
+
+      - name: Create GitHub release
+        if: steps.detect.outputs.is_release == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(poetry version -s)
+          gh release create "${VERSION}" --title "${VERSION}" --generate-notes
+
+      - name: Publish to PyPI
+        if: steps.detect.outputs.is_release == 'true'
+        env:
+          POETRY_PYPI_TOKEN_PYPI: ${{ secrets.PYPI_TOKEN }}
+        run: |
+          poetry publish --build
+
+      # =============================================================
+      # Non-release path: bump patch version, force-push release branch
+      # =============================================================
+      - name: Bump version and update release branch
+        if: steps.detect.outputs.is_release == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Skip if commit message already contains Bump or Release
+          LAST_COMMIT_MESSAGE=$(git log --format=%B -n 1 | head -n 1)
+          if echo "${LAST_COMMIT_MESSAGE}" | grep -iE "(Bump|Release taskcat)"; then
+            echo "Skipping version bump - already a bump/release commit"
+            exit 0
+          fi
+
+          # Bump patch version
+          poetry version patch
+          VERSION=$(poetry version -s)
+          RELEASE_BRANCH="release/v$(echo ${VERSION} | cut -f1-2 -d .)"
+
+          # Commit the version bump
+          git add pyproject.toml
+          git commit -m "Release: v${VERSION}"
+
+          # Force-push to release branch
+          git push origin HEAD:${RELEASE_BRANCH} --force
+
+          # Create or update the release PR
+          OPEN_PR=$(gh pr list --state open --base main --head "${RELEASE_BRANCH}" --limit 1 --json number --jq '.[0].number // empty')
+
+          if [ -z "${OPEN_PR}" ]; then
+            gh pr create \
+              --title "Release taskcat [${VERSION}]" \
+              --head "${RELEASE_BRANCH}" \
+              --base main \
+              --body ""
+            OPEN_PR=$(gh pr list --state open --base main --head "${RELEASE_BRANCH}" --limit 1 --json number --jq '.[0].number // empty')
+          fi
+
+          # Update PR body with changelog
+          if [ -n "${OPEN_PR}" ]; then
+            LAST_RELEASE_COMMIT=$(git rev-list --tags --max-count=1 || echo "")
+            if [ -n "${LAST_RELEASE_COMMIT}" ]; then
+              TAG_BODY=$(git --no-pager log --no-merges --oneline ${LAST_RELEASE_COMMIT}..HEAD --pretty='- %h %s')
+            else
+              TAG_BODY=$(git --no-pager log --no-merges --oneline --pretty='- %h %s')
+            fi
+            gh pr edit "${OPEN_PR}" --body "${TAG_BODY}"
+          fi
