@@ -1,6 +1,6 @@
 [![logo](https://raw.githubusercontent.com/aws-ia/taskcat/main/assets/docs/images/tcat.png)](https://taskcat.io/)
 
-[![Build Status](https://travis-ci.com/aws-ia/taskcat.svg?branch=main)](https://travis-ci.com/aws-ia/taskcat) [![PyPI version](https://badge.fury.io/py/taskcat.svg)](https://badge.fury.io/py/taskcat) [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Unit Tests](https://github.com/aws-ia/taskcat/actions/workflows/unit-tests.yml/badge.svg)](https://github.com/aws-ia/taskcat/actions/workflows/unit-tests.yml) [![Static Tests](https://github.com/aws-ia/taskcat/actions/workflows/static-tests.yml/badge.svg)](https://github.com/aws-ia/taskcat/actions/workflows/static-tests.yml) [![PyPI version](https://badge.fury.io/py/taskcat.svg)](https://badge.fury.io/py/taskcat) [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 
 ## What is taskcat?
