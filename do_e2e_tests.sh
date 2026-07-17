@@ -1,5 +1,13 @@
 #!/bin/bash -e
 
+###############################################################################
+# DEPRECATED: This script is deprecated and will be removed in a future release.
+# Please use scripts/run-e2e-local.sh instead.
+###############################################################################
+
+echo "[DEPRECATED] This script is deprecated. Use scripts/run-e2e-local.sh instead." >&2
+echo ""
+
 echo "Building codebuild image..."
 cd e2e/codebuild/
 docker build . -t taskcat-e2e:latest > /dev/null
