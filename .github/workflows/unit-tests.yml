@@ -5,12 +5,20 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   unit-tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
+      # Test the supported floor (3.8, per pyproject.toml) and current
+      # interpreters. Intermediate versions add runtime without meaningful
+      # signal. 3.13 excluded until the pinned deps (jsonschema~=3.0,
+      # dulwich~=0.19) are verified against it.
       matrix:
-        python-version: ["3.8", "3.9", "3.10", "3.11"]
+        python-version: ["3.8", "3.11", "3.12"]
       fail-fast: false
 
     steps:
@@ -20,6 +28,10 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            dev-requirements.txt
 
       - name: Install dependencies
         run: |
@@ -36,3 +48,4 @@ jobs:
         with:
           name: coverage-report-py${{ matrix.python-version }}
           path: .coverage
+          include-hidden-files: true

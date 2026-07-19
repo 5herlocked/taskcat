@@ -17,10 +17,14 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
+  # Required for PyPI Trusted Publishing (OIDC)
+  id-token: write
 
 jobs:
   release:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -44,14 +48,17 @@ jobs:
 
       - name: Detect release merge commit
         id: detect
+        env:
+          FORCE_RELEASE: ${{ github.event.inputs.force_release }}
         run: |
           LAST_COMMIT_MESSAGE=$(git log --format=%B -n 1 | head -n 1)
-          echo "commit_message=${LAST_COMMIT_MESSAGE}" >> "$GITHUB_OUTPUT"
 
-          if [[ "${{ github.event.inputs.force_release }}" == "true" ]]; then
+          if [[ "${FORCE_RELEASE}" == "true" ]]; then
             echo "is_release=true" >> "$GITHUB_OUTPUT"
             echo "Forced release via workflow_dispatch"
-          elif echo "${LAST_COMMIT_MESSAGE}" | grep -iE "Merge pull request.*from .*/release.*"; then
+          # Anchored to the aws-ia org (matching the original Travis/ABP pattern) so a
+          # fork branch named release-* cannot trigger a release when merged.
+          elif echo "${LAST_COMMIT_MESSAGE}" | grep -iE "Merge pull request.*from aws-ia/release.*"; then
             echo "is_release=true" >> "$GITHUB_OUTPUT"
             echo "Release merge commit detected"
           else
@@ -91,12 +98,17 @@ jobs:
           VERSION=$(poetry version -s)
           gh release create "${VERSION}" --title "${VERSION}" --generate-notes
 
+      - name: Build distribution
+        if: steps.detect.outputs.is_release == 'true'
+        run: |
+          poetry build
+
+      # Publishes via PyPI Trusted Publishing (OIDC) — no long-lived token.
+      # One-time setup on pypi.org → project 'taskcat' → Publishing:
+      #   owner: aws-ia, repository: taskcat, workflow: release.yml
       - name: Publish to PyPI
         if: steps.detect.outputs.is_release == 'true'
-        env:
-          POETRY_PYPI_TOKEN_PYPI: ${{ secrets.PYPI_TOKEN }}
-        run: |
-          poetry publish --build
+        uses: pypa/gh-action-pypi-publish@release/v1
 
       # =============================================================
       # Non-release path: bump patch version, force-push release branch

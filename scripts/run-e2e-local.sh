@@ -193,7 +193,10 @@ info "Now operating as: ${ASSUMED_ARN}"
 info "Checking taskcat installation..."
 cd "${PROJECT_ROOT}"
 
-if ! python3 -c "import taskcat" 2>/dev/null; then
+# NOTE: checking with `python3 -c "import taskcat"` from the repo root is a
+# false positive — cwd is on sys.path, so the source tree shadows the check.
+# `pip show` only reports an actual (editable or regular) installation.
+if ! pip show taskcat >/dev/null 2>&1; then
     info "Installing taskcat in development mode..."
     pip install -e . --quiet
     pip install -r dev-requirements.txt --quiet

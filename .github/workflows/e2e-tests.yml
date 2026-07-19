@@ -62,6 +62,9 @@ permissions:
 jobs:
   e2e-tests:
     runs-on: ubuntu-latest
+    # test_cli.sh creates real CloudFormation stacks; cap the job so a wedged
+    # stack can't hold the runner (and the concurrency lock) for the 6h default.
+    timeout-minutes: 45
     # Prevent concurrent e2e runs that could conflict on AWS resources
     concurrency:
       group: e2e-tests-${{ github.ref }}
@@ -149,3 +152,4 @@ jobs:
           path: |
             cov_report
             e2e/tests/.coverage
+          include-hidden-files: true
