@@ -1,0 +1,197 @@
+# E2E tests on request
+#
+# The e2e tests create real AWS resources, so they do not run for every pull
+# request. A person with write access asks for a run with a comment on the
+# pull request:
+#
+#   /run-e2e            test the commit that is the head of the pull request now
+#   /run-e2e 1a2b3c4    the same, but fail if the head is not this commit
+#
+# GitHub runs this workflow from the default branch for comment events, so a
+# pull request cannot change it. The workflow does not check out or run code
+# from the pull request. It checks the commenter's access, pins the head commit,
+# and starts a CodeBuild project in the project's AWS account. That project
+# fetches the pinned commit and runs the tests with its own scoped role. The
+# result is a commit status named `e2e` on the pinned commit.
+#
+# ─── Required setup ───────────────────────────────────────────────────────────
+#
+# AWS: the stack in taskcat-infra/e2e/template.yaml (OIDC provider, controller
+# role, CodeBuild project).
+#
+# GitHub: an environment named `e2e`, limited to the default branch, with these
+# variables:
+#   E2E_CONTROLLER_ROLE_ARN   output ControllerRoleArn of the stack
+#   E2E_AWS_REGION            Region of the stack
+#   E2E_CODEBUILD_PROJECT     output ProjectName of the stack
+# The controller role trusts only jobs that use this environment. Add required
+# reviewers to the environment to make each run wait for a second person.
+
+name: E2E on request
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions: {}
+
+# The tests share one AWS account. Requests wait for each other.
+concurrency:
+  group: e2e-request
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    name: Check the request
+    if: github.event.issue.pull_request && startsWith(github.event.comment.body, '/run-e2e')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read
+      statuses: write
+    outputs:
+      sha: ${{ steps.pin.outputs.sha }}
+    steps:
+      - name: Check that the commenter can write to the repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMENTER: ${{ github.event.comment.user.login }}
+        run: |
+          permission="$(gh api "repos/${GITHUB_REPOSITORY}/collaborators/${COMMENTER}/permission" --jq .permission)"
+          case "${permission}" in
+            admin | write)
+              echo "${COMMENTER} has ${permission} access."
+              ;;
+            *)
+              echo "::error::${COMMENTER} has ${permission} access. An e2e run needs write access."
+              exit 1
+              ;;
+          esac
+
+      - name: Pin the head commit of the pull request
+        id: pin
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          # Remove trailing spaces and line ends, then accept the two documented forms only.
+          command="${COMMENT_BODY%"${COMMENT_BODY##*[![:space:]]}"}"
+          if [[ ! "${command}" =~ ^/run-e2e(\ ([0-9a-f]{7,40}))?$ ]]; then
+            echo "::error::Use '/run-e2e' or '/run-e2e <commit SHA>'."
+            exit 1
+          fi
+          expected="${BASH_REMATCH[2]}"
+
+          sha="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq .head.sha)"
+          if [[ ! "${sha}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Could not read the head commit of pull request #${PR_NUMBER}."
+            exit 1
+          fi
+          if [[ -n "${expected}" && "${sha}" != "${expected}"* ]]; then
+            echo "::error::The head of pull request #${PR_NUMBER} is ${sha}, not ${expected}. Review the new commits and ask again."
+            exit 1
+          fi
+
+          echo "sha=${sha}" >> "${GITHUB_OUTPUT}"
+          echo "E2E run for pull request #${PR_NUMBER} at commit \`${sha}\`." >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Mark the commit as pending
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ steps.pin.outputs.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh api "repos/${GITHUB_REPOSITORY}/statuses/${SHA}" \
+            -f state=pending -f context=e2e \
+            -f description="E2E tests requested" -f target_url="${RUN_URL}" > /dev/null
+
+  run:
+    name: Run in CodeBuild
+    needs: resolve
+    runs-on: ubuntu-latest
+    environment: e2e
+    timeout-minutes: 75
+    permissions:
+      id-token: write
+    steps:
+      - name: Assume the controller role
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.E2E_CONTROLLER_ROLE_ARN }}
+          aws-region: ${{ vars.E2E_AWS_REGION }}
+          role-session-name: e2e-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Start the build
+        id: start
+        env:
+          PROJECT: ${{ vars.E2E_CODEBUILD_PROJECT }}
+          APPROVED_SHA: ${{ needs.resolve.outputs.sha }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          build_id="$(aws codebuild start-build --project-name "${PROJECT}" \
+            --environment-variables-override \
+            "name=APPROVED_SHA,value=${APPROVED_SHA},type=PLAINTEXT" \
+            "name=PR_NUMBER,value=${PR_NUMBER},type=PLAINTEXT" \
+            --query build.id --output text)"
+          echo "Started build ${build_id} for commit ${APPROVED_SHA}."
+          echo "build_id=${build_id}" >> "${GITHUB_OUTPUT}"
+
+      - name: Wait for the build
+        id: wait
+        env:
+          BUILD_ID: ${{ steps.start.outputs.build_id }}
+        run: |
+          while true; do
+            status="$(aws codebuild batch-get-builds --ids "${BUILD_ID}" \
+              --query 'builds[0].buildStatus' --output text)"
+            if [[ "${status}" != "IN_PROGRESS" ]]; then
+              break
+            fi
+            sleep 15
+          done
+          echo "Build ${BUILD_ID} finished with status ${status}."
+          echo "status=${status}" >> "${GITHUB_OUTPUT}"
+
+      - name: Show the build log
+        if: always() && steps.start.outputs.build_id != ''
+        env:
+          BUILD_ID: ${{ steps.start.outputs.build_id }}
+        run: |
+          read -r group stream < <(aws codebuild batch-get-builds --ids "${BUILD_ID}" \
+            --query 'builds[0].logs.[groupName,streamName]' --output text)
+          aws logs get-log-events --log-group-name "${group}" --log-stream-name "${stream}" \
+            --start-from-head --query 'events[].[message]' --output text | tr -s '\n'
+
+      - name: Fail unless the build succeeded
+        env:
+          STATUS: ${{ steps.wait.outputs.status }}
+        run: |
+          [[ "${STATUS}" == "SUCCEEDED" ]]
+
+  report:
+    name: Report the result
+    needs: [resolve, run]
+    if: always() && needs.resolve.outputs.sha != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      statuses: write
+    steps:
+      - name: Set the commit status
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ needs.resolve.outputs.sha }}
+          RESULT: ${{ needs.run.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [[ "${RESULT}" == "success" ]]; then
+            state=success
+            description="E2E tests passed"
+          else
+            state=failure
+            description="E2E run ended with result: ${RESULT}"
+          fi
+          gh api "repos/${GITHUB_REPOSITORY}/statuses/${SHA}" \
+            -f state="${state}" -f context=e2e \
+            -f description="${description}" -f target_url="${RUN_URL}" > /dev/null
