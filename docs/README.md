@@ -17,6 +17,8 @@ AWS Regions
 
 
 ## Support
+Taskcat supports Python 3.10 through 3.14.
+
 [![Feature Request](https://img.shields.io/badge/Open%20Issues-Feature%20Request-green.svg)](https://github.com/aws-ia/taskcat/issues/new/choose)
 [![Report Bugs](https://img.shields.io/badge/Open%20Issue-Report%20Bug-red.svg)](https://github.com/aws-ia/taskcat/issues/new/choose)
 

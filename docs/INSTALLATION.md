@@ -4,6 +4,8 @@
 Currently only installation via pip is supported.
 
 ### Requirements
+Use Python 3.10 through 3.14.
+
 ![Python pip](https://img.shields.io/badge/Prerequisites-pip-blue.svg)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/taskcat.svg)](https://pypi.org/project/taskcat/#history)
 ![Python pip](https://img.shields.io/badge/Prerequisites-docker-yellow.svg)
