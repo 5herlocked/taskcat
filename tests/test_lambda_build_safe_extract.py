@@ -48,6 +48,13 @@ def extraction_mode(request, monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     if request.param == "fallback":
         monkeypatch.delattr(tarfile, "data_filter", raising=False)
+        # Simulate interpreters without filters, including their extraction default.
+        # Python 3.14 otherwise tries to call the deleted data_filter.
+        monkeypatch.setattr(
+            tarfile.TarFile,
+            "extraction_filter",
+            staticmethod(tarfile.fully_trusted_filter),
+        )
     return request.param
 
 
@@ -62,16 +69,23 @@ def extraction_mode(request, monkeypatch, tmp_path):
         pytest.param([("link", "symlink", "../../x")], id="relative-symlink-out"),
         pytest.param([("hl", "hardlink", "../../etc/x")], id="hardlink-out"),
         pytest.param(
-            [("x", "symlink", "."), ("a", "symlink", "x/x/x/../..")],
+            [
+                ("alias", "symlink", "."),
+                ("alias/escape", "symlink", ".."),
+                ("alias/escape/escaped", "file", None),
+            ],
             id="chained-symlink",
         ),
     ],
 )
 @pytest.mark.usefixtures("extraction_mode")
 def test_rejects_unsafe_members(tmp_path, members):
+    # A symlinked parent makes alias/escape point outside the destination even
+    # after data_filter normalizes link targets on newer Python patch releases.
     with pytest.raises(TaskCatException):
         _run_extract(tmp_path, members)
     assert not (tmp_path / "packages" / "my_function-evil").exists()
+    assert not (tmp_path / "packages" / "escaped").exists()
 
 
 def _data_filter_rejects_subdir_links(tmp_path):
