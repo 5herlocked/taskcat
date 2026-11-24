@@ -2,9 +2,8 @@
 # scripts/run-e2e-local.sh
 #
 # Run the full e2e test suite locally using your AWS credentials.
-# This script supersedes the Docker-based approach in do_e2e_tests.sh,
-# providing a simpler direct-execution model that does not require Docker
-# or Docker-in-Docker.
+# The test scripts in e2e/tests/ run directly on this machine.
+# e2e/tests/package.sh builds Lambda packages and needs a running Docker daemon.
 #
 # Usage:
 #   ./scripts/run-e2e-local.sh [--profile PROFILE]
@@ -47,13 +46,11 @@ while [[ $# -gt 0 ]]; do
         -h|--help)
             echo "Usage: $0 [--profile PROFILE]"
             echo ""
-            echo "Run taskcat e2e tests locally without Docker."
+            echo "Run taskcat e2e tests locally."
             echo ""
             echo "Options:"
             echo "  --profile PROFILE   AWS CLI profile (default: Admin)"
             echo "  -h, --help          Show this help message"
-            echo ""
-            echo "NOTE: This script supersedes do_e2e_tests.sh (Docker-based approach)."
             exit 0
             ;;
         *)

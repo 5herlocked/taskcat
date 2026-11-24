@@ -1,6 +1,5 @@
 # End-to-End Tests Workflow
 #
-# Replicates the e2e testing from do_e2e_tests.sh and e2e/codebuild/.
 # Runs all test scripts in e2e/tests/ with coverage instrumentation.
 #
 # ─── Required Setup ───────────────────────────────────────────────────────────
@@ -114,7 +113,7 @@ jobs:
       - name: Run e2e tests with coverage
         working-directory: e2e/tests
         env:
-          # Mirrors the COV_CMD and BIN variables from e2e/codebuild/run-e2e.sh
+          # The test scripts read these two variables.
           COV_CMD: "coverage run -a --source ../../taskcat/ --omit ../../taskcat/_stacker.py"
           BIN: "../../bin/taskcat"
         run: |
