@@ -12,9 +12,6 @@ files = [
     {file = "annotated_types-0.7.0.tar.gz", hash = "sha256:aff07c09a53a08bc8cfccb9c85b05f1aa9a2a6f23728d790723543408344ce89"},
 ]
 
-[package.dependencies]
-typing-extensions = {version = ">=4.0.0", markers = "python_version < \"3.9\""}
-
 [[package]]
 name = "attrs"
 version = "24.2.0"
@@ -103,10 +100,7 @@ files = [
 [package.dependencies]
 jmespath = ">=0.7.1,<2.0.0"
 python-dateutil = ">=2.1,<3.0.0"
-urllib3 = [
-    {version = ">=1.25.4,<1.27", markers = "python_version < \"3.10\""},
-    {version = ">=1.25.4,<2.2.0 || >2.2.0,<3", markers = "python_version >= \"3.10\""},
-]
+urllib3 = {version = ">=1.25.4,<2.2.0 || >2.2.0,<3", markers = "python_version >= \"3.10\""}
 
 [package.extras]
 crt = ["awscrt (==0.21.2)"]
@@ -711,8 +705,8 @@ files = [
 annotated-types = ">=0.4.0"
 pydantic-core = "2.20.1"
 typing-extensions = [
-    {version = ">=4.6.1", markers = "python_version < \"3.13\""},
     {version = ">=4.12.2", markers = "python_version >= \"3.13\""},
+    {version = ">=4.6.1", markers = "python_version < \"3.13\""},
 ]
 
 [package.extras]
@@ -1242,5 +1236,5 @@ files = [
 
 [metadata]
 lock-version = "2.1"
-python-versions = ">=3.8.0,<4.0"
-content-hash = "3b0ecb20034e6f8166a995096d2c7b5e8df09840d723114dcdd0a7faf3a2c477"
+python-versions = ">=3.10.0,<4.0"
+content-hash = "2783553db95ceda702af97d88f4c8b8485dd8661d7735aa9627ad931d9cc7c6f"
