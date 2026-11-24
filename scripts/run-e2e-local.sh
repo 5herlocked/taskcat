@@ -14,7 +14,7 @@
 #
 # Prerequisites:
 #   - AWS CLI v2 installed and configured
-#   - Python 3.8+ with pip
+#   - Python 3.10 or later with pip
 #   - Valid AWS credentials (verified via sts get-caller-identity)
 #
 set -euo pipefail
