@@ -88,6 +88,32 @@ def test_rejects_unsafe_members(tmp_path, members):
     assert not (tmp_path / "packages" / "escaped").exists()
 
 
+def test_link_target_chain_stays_contained(tmp_path, extraction_mode):
+    # A link whose target passes through an earlier link before "..". Older
+    # data filters and the fallback reject it. Newer data filters write a
+    # normalized link that stays inside. Both are safe, so check the outcome.
+    target = tmp_path / "packages" / "my_function"
+    try:
+        _run_extract(
+            tmp_path,
+            [
+                ("output", "dir", None),
+                ("x", "symlink", "."),
+                ("a", "symlink", "x/x/x/../.."),
+                ("a/escaped", "file", None),
+            ],
+        )
+    except TaskCatException:
+        pass
+    else:
+        assert (target / "a" / "escaped").read_bytes() == b"x"
+    assert not (tmp_path / "escaped").exists()
+    for entry in tmp_path.rglob("*"):
+        if entry.is_symlink() or entry.is_file():
+            assert entry.is_relative_to(target)
+            assert entry.resolve().is_relative_to(target)
+
+
 def _data_filter_rejects_subdir_links(tmp_path):
     # early backports of the data filter resolve symlink targets from the
     # destination root instead of the link's folder (CPython gh-107845)

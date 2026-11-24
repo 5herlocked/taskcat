@@ -184,12 +184,15 @@ class TestCfnLint(unittest.TestCase):
             test.append(rule)
             lint.output_results()
             self.assertTrue(
-                mock_log_warning.call_args_list[1][0][0].startswith(
-                    f"Linting detected issues in: {str(templates['test1'].template_path)}"
-                )
+                result_key.startswith(str(templates["test1"].template_path))
             )
-            mock_log_warning.assert_has_calls(
-                [mock.call("    line 123 [0001] [short warning] some warning")]
+            self.assertEqual(
+                mock_log_warning.call_args_list,
+                [
+                    mock.call("---"),
+                    mock.call(f"Linting detected issues in: {result_key}"),
+                    mock.call("    line 123 [0001] [short warning] some warning"),
+                ],
             )
             self.assertEqual(mock_log_info.called, False)
             self.assertEqual(mock_log_error.called, False)
@@ -204,13 +207,13 @@ class TestCfnLint(unittest.TestCase):
             rule.message = "some error"
             test.append(rule)
             lint.output_results()
-            self.assertTrue(
-                mock_log_error.call_args_list[1][0][0].startswith(
-                    f"Linting detected issues in: {str(templates['test1'].template_path)}"
-                )
-            )
-            mock_log_error.assert_has_calls(
-                [mock.call("    line 123 [0001] [short error] some error")]
+            self.assertEqual(
+                mock_log_error.call_args_list,
+                [
+                    mock.call("---"),
+                    mock.call(f"Linting detected issues in: {result_key}"),
+                    mock.call("    line 123 [0001] [short error] some error"),
+                ],
             )
             self.assertEqual(mock_log_info.called, False)
             self.assertEqual(mock_log_warning.called, False)
