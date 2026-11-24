@@ -13,12 +13,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
-      # Test the supported floor (3.8, per pyproject.toml) and current
-      # interpreters. Intermediate versions add runtime without meaningful
-      # signal. 3.13 excluded until the pinned deps (jsonschema~=3.0,
-      # dulwich~=0.19) are verified against it.
+      # Test every supported Python minor version, from 3.10 through 3.14.
       matrix:
-        python-version: ["3.8", "3.11", "3.12"]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
       fail-fast: false
 
     steps:
