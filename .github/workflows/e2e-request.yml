@@ -162,8 +162,13 @@ jobs:
         run: |
           read -r group stream < <(aws codebuild batch-get-builds --ids "${BUILD_ID}" \
             --query 'builds[0].logs.[groupName,streamName]' --output text)
+          # The log holds output of pull request code. Stop GitHub from reading
+          # workflow commands in it.
+          token="$(openssl rand -hex 16)"
+          echo "::stop-commands::${token}"
           aws logs get-log-events --log-group-name "${group}" --log-stream-name "${stream}" \
             --start-from-head --query 'events[].[message]' --output text | tr -s '\n'
+          echo "::${token}::"
 
       - name: Fail unless the build succeeded
         env:
