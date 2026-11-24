@@ -1,5 +1,5 @@
 [![logo](https://raw.githubusercontent.com/aws-ia/taskcat/main/assets/docs/images/tcat.png)](https://taskcat.io/)
-[![Build Status](https://travis-ci.com/aws-ia/taskcat.svg?branch=main)](https://travis-ci.com/aws-ia/taskcat) [![PyPI version](https://badge.fury.io/py/taskcat.svg)](https://badge.fury.io/py/taskcat) [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Unit Tests](https://github.com/aws-ia/taskcat/actions/workflows/unit-tests.yml/badge.svg)](https://github.com/aws-ia/taskcat/actions/workflows/unit-tests.yml) [![Static Tests](https://github.com/aws-ia/taskcat/actions/workflows/static-tests.yml/badge.svg)](https://github.com/aws-ia/taskcat/actions/workflows/static-tests.yml) [![PyPI version](https://badge.fury.io/py/taskcat.svg)](https://badge.fury.io/py/taskcat) [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 
 
@@ -18,6 +18,8 @@ AWS Regions
 __See [TaskCat documentation](https://aws-ia.github.io/taskcat/).__
 
 ## Support
+TaskCat supports Python 3.10 through 3.14.
+
 [![Feature Request](https://img.shields.io/badge/Open%20Issues-Feature%20Request-green.svg)](https://github.com/aws-ia/taskcat/issues/new/choose)
 [![Report Bugs](https://img.shields.io/badge/Open%20Issue-Report%20Bug-red.svg)](https://github.com/aws-ia/taskcat/issues/new/choose)
 

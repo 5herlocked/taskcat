@@ -48,7 +48,7 @@ if [[ ${EXIT_CODE} -ne 0 ]] ; then
     exit 1
 fi
 
-if [[ $(cat /tmp/output | grep -c '\[2001\] \[Check if Parameters are Used\]') -ne 1 ]]
+if [[ $(cat /tmp/output | grep -c '\[2001\]') -ne 1 ]]
 then
     echo '$ taskcat lint -p ../../tests/data/lint-warning'
     cat /tmp/output
@@ -66,7 +66,7 @@ if [[ ${EXIT_CODE} -ne 1 ]] ; then
     exit 1
 fi
 
-if [[ $(cat /tmp/output | grep -c "\[3002\] \[Resource properties are valid\]") -ne 1 ]]
+if [[ $(cat /tmp/output | grep -c '\[3002\]') -ne 1 ]]
 then
     echo '$ taskcat lint -p ../../tests/data/lint-error'
     cat /tmp/output

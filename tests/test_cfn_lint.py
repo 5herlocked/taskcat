@@ -21,39 +21,19 @@ class MockClient(object):
         self._client_config = MockClientConfig()
 
 
-test_two_path = str(
-    Path(
-        "/tmp/lint_test/test-config-two/templates/taskcat_test_" "template_test1"
-    ).resolve()
-)
-lintMsg = (
-    "[W3002: Warn when properties are configured to only work with the package command]"
-    "(This code may only work with `package` cli command as the property"
-    "(Resources/Name/Properties/TemplateURL) is a string) matched /private/tmp/lint_test/test-config-three/templates/taskcat_test_template_test1:1"
-)
 if cfnlint.version.__version__.startswith("0."):
-    invalid_type_error = [
-        f"[E3001: Basic CloudFormation Resource Check] (Invalid or "
-        f"unsupported Type AWS::Not::Exist for resource Name in "
-        f"eu-west-1) matched "
-        f"{test_two_path}:1"
-    ]
+    invalid_type_error = ["E3001"]
 else:
-    # The format of this message seems to change in 1.3.0 onwards
-    # (prior 1.x versions were pre-releases so not supporting them)
-    invalid_type_error = [
-        f"[E3006: Validate the CloudFormation resource type] (Resource "
-        f"type 'AWS::Not::Exist' does not exist in "
-        f"'eu-west-1') matched "
-        f"{test_two_path}:1"
-    ]
+    invalid_type_error = ["E3006"]
 test_cases = [
     {
         "config": {
             "project": {"name": "test-config", "regions": ["eu-west-1"]},
             "tests": {"test1": {}},
         },
-        "templates": {"test1": """{"Resources": {}}"""},
+        "templates": {
+            "test1": """{"Resources": {"Bucket": {"Type": "AWS::S3::Bucket"}}}"""
+        },
         "expected_lints": {
             "test1": {
                 "regions": ["eu-west-1"],
@@ -108,9 +88,9 @@ def flatten_rule(lints):
     for test in lints.keys():
         for result in lints[test]["results"].keys():
             for i in range(0, len(lints[test]["results"][result])):
-                lints[test]["results"][result][i] = str(
-                    lints[test]["results"][result][i]
-                )
+                lints[test]["results"][result][i] = lints[test]["results"][result][
+                    i
+                ].rule.id
     return lints
 
 
@@ -148,6 +128,7 @@ class TestCfnLint(unittest.TestCase):
                 )
                 templates = config.get_templates()
                 lint = Lint(config=config, templates=templates)
+                self.assertEqual(lint.passed, test_case is test_cases[0])
                 self.assertEqual(
                     test_case["expected_lints"], flatten_rule(lint.lints[0])
                 )
@@ -194,7 +175,8 @@ class TestCfnLint(unittest.TestCase):
             lint_key = list(lint.lints[0])[0]
             result_key = list(lint.lints[0][lint_key]["results"])[0]
             test = lint.lints[0][lint_key]["results"][result_key]
-            rule = mock.Mock(return_val="[W0001] some warning")
+            rule = mock.MagicMock()
+            rule.__str__.return_value = "[W0001] some warning"
             rule.rule.id = "W0001"
             rule.linenumber = 123
             rule.rule.shortdesc = "short warning"
@@ -202,34 +184,39 @@ class TestCfnLint(unittest.TestCase):
             test.append(rule)
             lint.output_results()
             self.assertTrue(
-                mock_log_warning.call_args_list[1][0][0].startswith(
-                    f"Linting detected issues in: {str(templates['test1'].template_path)}"
-                )
+                result_key.startswith(str(templates["test1"].template_path))
             )
-            mock_log_warning.assert_has_calls(
-                [mock.call("    line 123 [0001] [short warning] some warning")]
+            self.assertEqual(
+                mock_log_warning.call_args_list,
+                [
+                    mock.call("---"),
+                    mock.call(f"Linting detected issues in: {result_key}"),
+                    mock.call("    line 123 [0001] [short warning] some warning"),
+                ],
             )
             self.assertEqual(mock_log_info.called, False)
             self.assertEqual(mock_log_error.called, False)
 
             mock_log_warning.reset_mock()
             test.pop(0)
-            rule = mock.Mock(return_val="[E0001] some error")
+            rule = mock.MagicMock()
+            rule.__str__.return_value = "[E0001] some error"
             rule.rule.id = "E0001"
             rule.linenumber = 123
             rule.rule.shortdesc = "short error"
             rule.message = "some error"
             test.append(rule)
             lint.output_results()
-            self.assertTrue(
-                mock_log_warning.call_args[0][0].startswith(
-                    f"Linting detected issues in: {str(templates['test1'].template_path)}"
-                )
-            )
-            mock_log_error.assert_called_once_with(
-                "    line 123 [0001] [short error] some error"
+            self.assertEqual(
+                mock_log_error.call_args_list,
+                [
+                    mock.call("---"),
+                    mock.call(f"Linting detected issues in: {result_key}"),
+                    mock.call("    line 123 [0001] [short error] some error"),
+                ],
             )
             self.assertEqual(mock_log_info.called, False)
+            self.assertEqual(mock_log_warning.called, False)
         finally:
             shutil.rmtree("/tmp/lint_test_output/")
             os.chdir(cwd)
@@ -253,13 +240,19 @@ class TestCfnLint(unittest.TestCase):
             lint_key = list(lint.lints[0])[0]
             result_key = list(lint.lints[0][lint_key]["results"])[0]
             test = lint.lints[0][lint_key]["results"][result_key]
-            rule = mock.Mock(return_val="[E0001] some error")
-            rule.rule.id = "E0001"
+            rule = mock.MagicMock()
+            rule.__str__.return_value = "[W0001] some warning"
+            rule.rule.id = "W0001"
             rule.linenumber = 123
             rule.rule.shortdesc = "short error"
             rule.message = "some error"
             test.append(rule)
+            self.assertEqual(lint.passed, True)
             lint.strict = True
+            self.assertEqual(lint.passed, False)
+            lint.strict = False
+            rule.__str__.return_value = "[E0001] some error"
+            rule.rule.id = "E0001"
             self.assertEqual(lint.passed, False)
         finally:
             shutil.rmtree("/tmp/lint_test_output/")

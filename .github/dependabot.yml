@@ -1,0 +1,20 @@
+# Dependabot configuration
+# - github-actions: keeps workflow action versions current (pairs with the
+#   tag/SHA pins in .github/workflows/)
+# - pip: version updates for runtime and dev dependencies
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns:
+          - "*"
+
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
