@@ -35,11 +35,6 @@ on:
 
 permissions: {}
 
-# The tests share one AWS account. Requests wait for each other.
-concurrency:
-  group: e2e-request
-  cancel-in-progress: false
-
 jobs:
   resolve:
     name: Check the request
@@ -111,6 +106,13 @@ jobs:
     needs: resolve
     runs-on: ubuntu-latest
     environment: e2e
+    # The tests share one AWS account, so builds wait for each other. The group
+    # is on this job and not on the workflow, because every comment in the
+    # repository starts this workflow. GitHub keeps one waiting job for each
+    # group: a newer request replaces an older request that has not started.
+    concurrency:
+      group: e2e-build
+      cancel-in-progress: false
     timeout-minutes: 75
     permissions:
       id-token: write
